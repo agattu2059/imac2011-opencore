@@ -32,31 +32,47 @@ jobs:
       - name: Collect EFI files
         shell: bash
         run: |
-          echo "Looking for generated EFI files..."
-          find oclp -type f \( -name "config.plist" -o -name "BOOTx64.efi" -o -name "OpenCore.efi" \) -print
-
           CONFIG=$(find oclp -type f -path '*/EFI/OC/config.plist' -print -quit)
           if [ -z "$CONFIG" ]; then
-            echo "ERROR: EFI configuration not found"
+            echo "ERROR: OpenCore config.plist not found"
             exit 1
           fi
 
           EFI_DIR=$(dirname "$(dirname "$CONFIG")")
-          echo "EFI directory: $EFI_DIR"
+          BUILD_DIR=$(dirname "$EFI_DIR")
+
+          echo "OpenCore build directory: $BUILD_DIR"
+          echo "Checking available boot files:"
+          find "$BUILD_DIR" -maxdepth 6 -type f \
+            \( -name "boot.efi" -o -name "BOOTx64.efi" \) -print
 
           mkdir -p output
           cp -R "$EFI_DIR" output/EFI
 
-          echo "Collected files:"
-          find output/EFI -maxdepth 4 -type f -print
+          if [ -d "$BUILD_DIR/System" ]; then
+            cp -R "$BUILD_DIR/System" output/System
+          fi
 
-          test -f output/EFI/BOOT/BOOTx64.efi || echo "ERROR: BOOTx64.efi missing"
-          test -f output/EFI/OC/config.plist || echo "ERROR: config.plist missing"
+          if [ -f "$BUILD_DIR/boot.efi" ]; then
+            cp "$BUILD_DIR/boot.efi" output/boot.efi
+          fi
+
+          echo "Collected bootloader files:"
+          find output -maxdepth 6 -type f -print
+
+          test -f output/EFI/OC/config.plist
+          test -f output/EFI/OC/OpenCore.efi
+
+          if [ ! -f output/EFI/BOOT/BOOTx64.efi ] && \
+             [ ! -f output/System/Library/CoreServices/boot.efi ]; then
+            echo "ERROR: No supported boot entry file found"
+            exit 1
+          fi
 
 
       - name: Upload EFI artifact
         uses: actions/upload-artifact@v4
         with:
           name: OpenCore-iMac12-2
-          path: output/EFI/
-  
+          path: output/
+          if-no-files-found: error

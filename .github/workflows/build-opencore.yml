@@ -28,19 +28,31 @@ jobs:
         working-directory: oclp
         run: python OpenCore-Patcher-GUI.command --build --model iMac12,2 --verbose
 
+     
       - name: Collect EFI files
         shell: bash
         run: |
+          echo "Looking for generated EFI files..."
+          find oclp -type f \( -name "config.plist" -o -name "BOOTx64.efi" -o -name "OpenCore.efi" \) -print
+
           CONFIG=$(find oclp -type f -path '*/EFI/OC/config.plist' -print -quit)
           if [ -z "$CONFIG" ]; then
-            echo "No generated EFI configuration found."
+            echo "ERROR: EFI configuration not found"
             exit 1
           fi
+
           EFI_DIR=$(dirname "$(dirname "$CONFIG")")
+          echo "EFI directory: $EFI_DIR"
+
           mkdir -p output
           cp -R "$EFI_DIR" output/EFI
-          test -f output/EFI/BOOT/BOOTx64.efi
-          test -f output/EFI/OC/config.plist
+
+          echo "Collected files:"
+          find output/EFI -maxdepth 4 -type f -print
+
+          test -f output/EFI/BOOT/BOOTx64.efi || echo "ERROR: BOOTx64.efi missing"
+          test -f output/EFI/OC/config.plist || echo "ERROR: config.plist missing"
+
 
       - name: Upload EFI artifact
         uses: actions/upload-artifact@v4

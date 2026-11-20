@@ -1,0 +1,50 @@
+
+name: Build OpenCore for iMac 2011
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15-intel
+
+    steps:
+      - name: Download official OCLP source
+        uses: actions/checkout@v4
+        with:
+          repository: dortania/OpenCore-Legacy-Patcher
+          path: oclp
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        working-directory: oclp
+        run: python -m pip install -r requirements.txt
+
+      - name: Build OpenCore for iMac12,2
+        working-directory: oclp
+        run: python OpenCore-Patcher-GUI.command --build --model iMac12,2 --verbose
+
+      - name: Collect EFI files
+        shell: bash
+        run: |
+          CONFIG=$(find oclp -type f -path '*/EFI/OC/config.plist' -print -quit)
+          if [ -z "$CONFIG" ]; then
+            echo "No generated EFI configuration found."
+            exit 1
+          fi
+          EFI_DIR=$(dirname "$(dirname "$CONFIG")")
+          mkdir -p output
+          cp -R "$EFI_DIR" output/EFI
+          test -f output/EFI/BOOT/BOOTx64.efi
+          test -f output/EFI/OC/config.plist
+
+      - name: Upload EFI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenCore-iMac12-2
+          path: output/EFI/
+  
